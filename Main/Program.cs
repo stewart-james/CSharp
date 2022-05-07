@@ -22,7 +22,8 @@ namespace Main
             {
                 { CSharpVersion.CSharp10, new List<Feature>
                     {
-                        MakeFeature<RecordStructs>(outputStream)
+                        MakeFeature<RecordStructs>(outputStream),
+                        MakeFeature<StructChanges>(outputStream)
                     }
                 }
             };
