@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Common;
 using CSharp10;
 
@@ -11,26 +12,21 @@ namespace Main
     {
         public static void Main()
             => new Program().Run();
-        
-        private readonly Dictionary<CSharpVersion, List<Feature>> _features;
+
+        private readonly Dictionary<CSharpVersion, Assembly> _assemblies;
 
         public Program()
         {
-            var outputStream = Console.OpenStandardOutput();
-            
-            _features = new Dictionary<CSharpVersion, List<Feature>>
+            _assemblies = new Dictionary<CSharpVersion, Assembly>
             {
-                { CSharpVersion.CSharp10, new List<Feature>
-                    {
-                        MakeFeature<RecordStructs>(outputStream),
-                        MakeFeature<StructChanges>(outputStream)
-                    }
-                }
+                { CSharpVersion.CSharp10, Assembly.GetAssembly(typeof(RecordStructs))! }
             };
         }
 
         private void Run()
         {
+            var outputStream = Console.OpenStandardOutput();
+            
             while (true)
             {
                 Console.Clear();
@@ -50,7 +46,12 @@ namespace Main
                 if (!Enum.TryParse(input, out CSharpVersion version))
                     continue;
 
-                if (!_features.ContainsKey(version) || !_features[version].Any())
+                if (!_assemblies.ContainsKey(version))
+                    continue;
+
+                var features = GetFeaturesInAssembly(_assemblies[version], outputStream);
+
+                if (!features.Any())
                 {
                     Console.WriteLine($"No features for {ToString(version)}");
                     continue;
@@ -59,7 +60,6 @@ namespace Main
                 while (true)
                 {
                     Console.Clear();
-                    var features = _features[version];
                     Console.WriteLine("Select a feature:");
                     for (int i = 0; i < features.Count; ++i)
                         Console.WriteLine($"{i + 1} - {features[i].Name}");
@@ -87,9 +87,6 @@ namespace Main
             }
         }
 
-        private Feature MakeFeature<T>(Stream stream) where T : Feature
-            => (T)Activator.CreateInstance(typeof(T), stream)!;
-
         private string ToString(CSharpVersion vers)
         {
             switch (vers)
@@ -101,5 +98,13 @@ namespace Main
                     throw new ArgumentOutOfRangeException(nameof(vers), vers, "Unexpected version");
             }
         }
+
+        private static List<Feature> GetFeaturesInAssembly(Assembly assembly, Stream stream)
+            => assembly
+                .GetTypes()
+                .Where(t => t.IsAssignableTo(typeof(Feature)))
+                .Select(t => (Feature?)Activator.CreateInstance(t, stream))
+                .Where(i => i != null)
+                .ToList()!;
     }
 }
